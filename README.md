@@ -1,91 +1,55 @@
+# DynamoDBSQLWrapper
 
-# DynamoDB SQL Wrapper
-
-This is a Python class that allows you to perform SQL-style operations such as `SELECT`, `WHERE`, `JOIN`, `INSERT`, and `UPDATE` on an Amazon DynamoDB table using `boto3`.
+The DynamoDBSQLWrapper is a Python class that provides a SQL-like interface for interacting with Amazon DynamoDB. It allows users to execute SQL-like queries on DynamoDB tables, abstracting away the complexities of DynamoDB's native query language.
 
 ## Features
 
-- **SELECT**: Retrieve specific columns from the DynamoDB table.
-- **WHERE**: Apply conditions to filter the items in the table.
-- **JOIN**: Simulate joins between two DynamoDB tables.
-- **INSERT**: Add a new item to the DynamoDB table.
-- **UPDATE**: Update an existing item in the DynamoDB table.
+- Execute SELECT, INSERT, UPDATE, and DELETE queries on DynamoDB tables
+- Support for basic WHERE clauses
+- Basic JOIN functionality (both implicit and explicit joins)
+- Parsing of SQL-like queries into DynamoDB operations
+- Logging of operations for debugging and monitoring
 
-## Example Usage
+## Usage
 
-### 1. Initialize the Wrapper
+To use the DynamoDBSQLWrapper, first initialize the class:
 
-```python
-# Initialize the DynamoDBSQLWrapper for a specific table
-db_wrapper = DynamoDBSQLWrapper('YourTableName')
-```
+From dynamodb_sql_wrapper.mysql_to_ddb_class import DynamoDBSQLWrapper
 
-### 2. SELECT Operation
+wrapper = DynamoDBSQLWrapper()
 
-```python
-# Select specific columns from the table
-columns = ['id', 'name']
-items = db_wrapper.select(columns)
-print(items)
-```
+Then, you can execute SQL-like queries:
 
-### 3. SELECT with WHERE Clause
+# SELECT query
+result = wrapper.execute_query("SELECT column1, column2 FROM mytable WHERE column3 = 'value'")
 
-```python
-# Select items with a condition
-columns = ['id', 'name']
-conditions = "age > 30 AND city = 'Seattle'"
-items = db_wrapper.select(columns, conditions)
-print(items)
-```
+# INSERT query
+wrapper.execute_query("INSERT INTO mytable (column1, column2) VALUES ('value1', 'value2')")
 
-### 4. INSERT Operation
+# UPDATE query
+wrapper.execute_query("UPDATE mytable SET column1 = 'new_value' WHERE column2 = 'condition'")
 
-```python
-# Insert a new item into the table
-item = {
-    'id': '123',
-    'name': 'John Doe',
-    'age': 30,
-    'city': 'Seattle'
-}
-response = db_wrapper.insert(item)
-print(response)
-```
+# DELETE query
+wrapper.execute_query("DELETE FROM mytable WHERE column1 = 'value'")
 
-### 5. UPDATE Operation
+## Supported Query Types
 
-```python
-# Update an existing item
-key = {'id': '123'}
-updates = {'age': 31, 'city': 'San Francisco'}
-response = db_wrapper.update(key, updates)
-print(response)
-```
+1. SELECT: Retrieve data from one or more tables
+2. INSERT: Add new data to a table
+3. UPDATE: Modify existing data in a table
+4. DELETE: Remove data from a table
 
-### 6. JOIN Operation
+## Limitations
 
-```python
-# Perform a join between two tables
-join_condition = "id = related_id"
-joined_data = db_wrapper.join('AnotherTable', join_condition)
-print(joined_data)
-```
+- Complex SQL operations and functions are not supported
+- JOIN operations are basic and may not cover all use cases
+- Performance may vary for large datasets or complex queries
 
 ## Requirements
 
-- Python 3.11+
-- `boto3` library for AWS DynamoDB interactions
+- boto3
+- Python 3.6+
 
-## Installation
+## Note
 
-Install the required library:
-
-```bash
-pip install boto3
-```
-
-## License
-
-This code is open-source and available under the MIT license.
-# dynamodb_sql_wrapper
+This wrapper is designed for simplifying DynamoDB operations and may not be suitable for all use cases. It's important to consider the underlying DynamoDB architecture and potential performance implications when using this wrapper in production environments.
