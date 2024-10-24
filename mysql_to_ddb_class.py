@@ -113,6 +113,9 @@ class DynamoDBSQLWrapper:
     def parse_select_query(self, sql_query: str) -> Dict[str, Any]:
         parsed_query = {}
 
+        # Remove any trailing semicolon
+        sql_query = sql_query.strip().rstrip(';')
+
         # Extract SELECT part
         select_match = re.search(r'SELECT\s+(.*?)\s+FROM', sql_query, re.IGNORECASE | re.DOTALL)
         if select_match:
@@ -411,6 +414,7 @@ class DynamoDBSQLWrapper:
             if self.evaluate_filter(item, filter_expression, expression_attribute_values):
                 filtered_items.append(item)
         return filtered_items
+
 
 
 
