@@ -212,24 +212,24 @@ class DynamoDBSQLWrapper:
             ddb_params['ProjectionExpression'] = projection_expression
 
         if 'from' in parsed_query and parsed_query['from']:
-            ddb_params['TableName'] = parsed_query['from'][0]  # Use the first table as main table
+            ddb_params['from'] = parsed_query['from']
+            ddb_params['TableName'] = parsed_query['from'][0]
             if len(parsed_query['from']) > 1:
                 ddb_params['join'] = {'tables': parsed_query['from'][1:]}
 
         if 'where' in parsed_query and parsed_query['where']:
-            filter_expression, attr_values = self.parse_where_clause(parsed_query['where'], parsed_query.get('from', []))
-            if filter_expression and attr_values:
+            filter_expression, attr_values, join_conditions = self.parse_where_clause(parsed_query['where'], parsed_query.get('from', []))
+            if filter_expression:
                 ddb_params['FilterExpression'] = filter_expression
+            if attr_values:
                 ddb_params['ExpressionAttributeValues'] = attr_values
+            if join_conditions:
+                ddb_params['join']['conditions'] = join_conditions
 
-        logger.info("DynamoDB parameters generated")
+        logger.info(f"DynamoDB parameters generated: {ddb_params}")
         return ddb_params
 
-    def parse_where_clause(self, where_clause: str, tables: List[str]) -> Tuple[str, Dict[str, Any]]:
-        if not where_clause:
-            logger.info("No WHERE clause to parse")
-            return '', {}
-
+    def parse_where_clause(self, where_clause: str, tables: List[str]) -> Tuple[str, Dict[str, Any], List[str]]:
         conditions = where_clause.split(' AND ')
         filter_parts = []
         attr_values = {}
@@ -246,15 +246,17 @@ class DynamoDBSQLWrapper:
                 right_table, right_col = self.split_table_column(right, tables)
 
                 if left_table and right_table and left_table != right_table:
-                    # This is a join condition
                     join_conditions.append(f"{left} = {right}")
                 else:
                     placeholder = f":val{i}"
-                    filter_parts.append(f"{left_col} = {placeholder}")
-                    attr_values[placeholder] = {'S': right_col.strip("'")}
+                    filter_parts.append(f"{left} = {placeholder}")
+                    attr_values[placeholder] = {'S': right.strip("'")}
 
         logger.info(f"WHERE clause parsed. Conditions count: {len(conditions)}")
-        return ' AND '.join(filter_parts + join_conditions), attr_values
+        logger.info(f"Filter parts: {filter_parts}")
+        logger.info(f"Join conditions: {join_conditions}")
+        logger.info(f"Attribute values: {attr_values}")
+        return ' AND '.join(filter_parts), attr_values, join_conditions
 
     def split_table_column(self, identifier: str, tables: List[str]) -> Tuple[str, str]:
         parts = identifier.split('.')
@@ -290,23 +292,26 @@ class DynamoDBSQLWrapper:
         }
 
     def execute_join_select(self, ddb_params):
-        if ddb_params['join'].get('type') == 'implicit':
+        if 'join' in ddb_params:
             return self.execute_implicit_join_select(ddb_params)
         else:
-            return self.execute_explicit_join_select(ddb_params)
+            raise ValueError("Join operation not properly configured")
 
     def execute_implicit_join_select(self, ddb_params):
         table_responses = {}
         for table in ddb_params['from']:
             scan_params = {'TableName': table}
             
-            if 'FilterExpression' in ddb_params and ddb_params['ExpressionAttributeValues']:
-                table_filter = self.get_table_specific_filter(ddb_params['FilterExpression'], table)
-                if table_filter:
-                    scan_params['FilterExpression'] = table_filter
-                    scan_params['ExpressionAttributeValues'] = ddb_params['ExpressionAttributeValues']
+            table_filter, table_attr_values = self.get_table_specific_filter(
+                ddb_params.get('FilterExpression', ''),
+                table,
+                ddb_params.get('ExpressionAttributeValues', {})
+            )
+            if table_filter:
+                scan_params['FilterExpression'] = table_filter
+                scan_params['ExpressionAttributeValues'] = table_attr_values
             
-            logger.info(f"Scanning table: {table}")
+            logger.info(f"Scanning table: {table} with params: {scan_params}")
             table_responses[table] = self.ddb.scan(**scan_params)
 
         for table, response in table_responses.items():
@@ -317,103 +322,75 @@ class DynamoDBSQLWrapper:
             for table, response in table_responses.items()
         }
 
-        joined_items = self.perform_implicit_join(processed_items, ddb_params.get('FilterExpression'), ddb_params.get('ExpressionAttributeValues', {}))
+        join_conditions = ddb_params.get('join', {}).get('conditions', [])
+        joined_items = self.perform_implicit_join(processed_items, join_conditions)
 
         logger.info(f"Join operation complete. Result items: {len(joined_items)}")
         return joined_items
 
-    def get_table_specific_filter(self, filter_expression, table):
-        conditions = filter_expression.split(' AND ')
-        table_conditions = [cond for cond in conditions if table in cond or '.' not in cond]
-        return ' AND '.join(table_conditions) if table_conditions else None
-
-    def perform_implicit_join(self, processed_items, filter_expression, expression_attribute_values):
+    def perform_implicit_join(self, processed_items, join_conditions):
         tables = list(processed_items.keys())
         if len(tables) < 2:
             logger.info("Not enough tables for join operation")
             return processed_items[tables[0]]
 
-        joined_items = processed_items[tables[0]]
-        for table in tables[1:]:
-            new_joined_items = []
-            for item1 in joined_items:
-                for item2 in processed_items[table]:
-                    if self.items_match(item1, item2, filter_expression, expression_attribute_values, tables):
-                        new_joined_items.append({**item1, **item2})
-            joined_items = new_joined_items
+        joined_items = []
+        for item1 in processed_items[tables[0]]:
+            for item2 in processed_items[tables[1]]:
+                if self.items_match(item1, item2, join_conditions):
+                    joined_items.append({**item1, **item2})
 
         logger.info(f"Join operation complete. Result items: {len(joined_items)}")
         return joined_items
 
-    def items_match(self, item1, item2, filter_expression, expression_attribute_values, tables):
-        if not filter_expression:
-            return True
-        conditions = filter_expression.split(' AND ')
-        for condition in conditions:
-            parts = condition.split('=')
-            if len(parts) == 2:
-                left, right = parts
-                left = left.strip()
-                right = right.strip()
-                
-                left_table, left_col = self.split_table_column(left, tables)
-                right_table, right_col = self.split_table_column(right, tables)
-                
-                if left_table and right_table and left_table != right_table:
-                    # This is a join condition
-                    if item1.get(left_col) != item2.get(right_col):
-                        return False
-                elif left_col in item1 or left_col in item2:
-                    value = expression_attribute_values.get(right, {}).get('S', right_col)
-                    if item1.get(left_col) != value and item2.get(left_col) != value:
-                        return False
-
+    def items_match(self, item1, item2, join_conditions):
+        for condition in join_conditions:
+            left, right = condition.split('=')
+            left_col = left.split('.')[-1].strip()
+            right_col = right.split('.')[-1].strip()
+            
+            if item1.get(left_col) != item2.get(right_col):
+                return False
         return True
 
-    def execute_explicit_join_select(self, ddb_params):
-        # Scan both tables
-        main_table_response = self.ddb.scan(TableName=ddb_params['TableName'])
-        join_table_response = self.ddb.scan(TableName=ddb_params['join']['table'])
+    def get_table_specific_filter(self, filter_expression, table, attr_values):
+        if not filter_expression:
+            return None, {}
+        
+        conditions = filter_expression.split(' AND ')
+        table_conditions = []
+        table_attr_values = {}
+        
+        for condition in conditions:
+            if table in condition or '.' not in condition:
+                parts = condition.split('=')
+                if len(parts) == 2:
+                    left, right = parts
+                    left = left.strip().split('.')[-1]
+                    right = right.strip()
+                    if right.startswith(':'):
+                        table_conditions.append(f"{left} = {right}")
+                        table_attr_values[right] = attr_values[right]
+                    else:
+                        placeholder = f":{left}"
+                        table_conditions.append(f"{left} = {placeholder}")
+                        table_attr_values[placeholder] = {'S': right.strip("'")}
+        
+        return ' AND '.join(table_conditions) if table_conditions else None, table_attr_values
 
-        # Process the responses
-        main_items = self.process_select_response(main_table_response['Items'], ddb_params.get('ProjectionExpression'))
-        join_items = self.process_select_response(join_table_response['Items'], None)
 
-        # Perform the join operation
-        joined_items = self.perform_join(main_items, join_items, ddb_params['join']['condition'])
 
-        # Apply any remaining filters
-        if 'FilterExpression' in ddb_params:
-            joined_items = self.apply_filter(joined_items, ddb_params['FilterExpression'], ddb_params.get('ExpressionAttributeValues', {}))
 
-        return joined_items
 
-    def perform_join(self, main_items, join_items, join_condition):
-        # Parse the join condition
-        condition_parts = join_condition.split('=')
-        main_key = condition_parts[0].strip().split('.')[-1]
-        join_key = condition_parts[1].strip().split('.')[-1]
 
-        # Create a dictionary for faster lookups
-        join_dict = {item[join_key]: item for item in join_items}
 
-        # Perform the join
-        joined_items = []
-        for main_item in main_items:
-            if main_item[main_key] in join_dict:
-                joined_item = {**main_item, **join_dict[main_item[main_key]]}
-                joined_items.append(joined_item)
 
-        return joined_items
 
-    def apply_filter(self, items, filter_expression, expression_attribute_values):
-        # Implement filtering logic here
-        # This is a simplified version and may need to be expanded for complex filters
-        filtered_items = []
-        for item in items:
-            if self.evaluate_filter(item, filter_expression, expression_attribute_values):
-                filtered_items.append(item)
-        return filtered_items
+
+
+
+
+
 
 
 
