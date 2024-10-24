@@ -1,8 +1,8 @@
 # Platypus DynamoDB SQL Wrapper
 
-![logo](docs/logo.png "Platypus")
-
 The DynamoDBSQLWrapper is a Python class that provides a SQL-like interface for interacting with Amazon DynamoDB. It allows users to execute SQL-like queries on DynamoDB tables, abstracting away the complexities of DynamoDB's native query language.
+
+![logo](docs/logo.png "Platypus")
 
 *Note: This is a work in progress and is not yet ready for production use.*
 
