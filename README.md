@@ -10,27 +10,37 @@ The DynamoDBSQLWrapper is a Python class that provides a SQL-like interface for 
 - Parsing of SQL-like queries into DynamoDB operations
 - Logging of operations for debugging and monitoring
 
+## Installation
+
+To install the DynamoDBSQLWrapper, use pip:
+
+```bash
+pip install dynamodb-sql-wrapper
+```
+
 ## Usage
 
-To use the DynamoDBSQLWrapper, first initialize the class:
+To use the DynamoDBSQLWrapper, first import and initialize the class:
 
-From dynamodb_sql_wrapper.mysql_to_ddb_class import DynamoDBSQLWrapper
+```python
+from dynamodb_sql_wrapper.mysql_to_ddb_class import DynamoDBSQLWrapper
 
 wrapper = DynamoDBSQLWrapper()
+```
 
 Then, you can execute SQL-like queries:
 
 # SELECT query
-result = wrapper.execute_query("SELECT column1, column2 FROM mytable WHERE column3 = 'value'")
+`result = wrapper.execute_query("SELECT column1, column2 FROM mytable WHERE column3 = 'value'")`
 
 # INSERT query
-wrapper.execute_query("INSERT INTO mytable (column1, column2) VALUES ('value1', 'value2')")
+`wrapper.execute_query("INSERT INTO mytable (column1, column2) VALUES ('value1', 'value2')")`
 
 # UPDATE query
-wrapper.execute_query("UPDATE mytable SET column1 = 'new_value' WHERE column2 = 'condition'")
+`wrapper.execute_query("UPDATE mytable SET column1 = 'new_value' WHERE column2 = 'condition'")`
 
 # DELETE query
-wrapper.execute_query("DELETE FROM mytable WHERE column1 = 'value'")
+`wrapper.execute_query("DELETE FROM mytable WHERE column1 = 'value'")`
 
 ## Supported Query Types
 
