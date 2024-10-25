@@ -1,0 +1,11 @@
+LICENSE
+README.md
+pyproject.toml
+setup.cfg
+src/dynamodb_sql_wrapper/__init__.py
+src/dynamodb_sql_wrapper/mysql_to_ddb_class.py
+src/dynamodb_sql_wrapper.egg-info/PKG-INFO
+src/dynamodb_sql_wrapper.egg-info/SOURCES.txt
+src/dynamodb_sql_wrapper.egg-info/dependency_links.txt
+src/dynamodb_sql_wrapper.egg-info/requires.txt
+src/dynamodb_sql_wrapper.egg-info/top_level.txt
