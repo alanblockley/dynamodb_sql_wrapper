@@ -6,11 +6,6 @@ from typing import Dict, Any, Tuple, List
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-# query can be SELECT col1, col2, col3 FROM table WHERE col1 = 'avalue'
-# or INSERT INTO table (col1, col2, col3) VALUES ('avalue', 'bvalue', 'cvalue')
-# or UPDATE table SET col1 = 'avalue' WHERE col1 = 'avalue'
-# or DELETE FROM table WHERE col1 = 'avalue'
-
 class DynamoDBSQLWrapper:
     def __init__(self):
         self.ddb = boto3.client('dynamodb')
@@ -453,7 +448,14 @@ class DynamoDBSQLWrapper:
             # Add to filter parts
             placeholder = f":val{value_counter}"
             filter_parts.append(f"{left} = {placeholder}")
-            attr_values[placeholder] = {'S': right}
+            
+            # Check if value is numeric
+            try:
+                float(right)  # Test if value can be converted to number
+                attr_values[placeholder] = {'N': str(right)}  # Store as number type
+            except ValueError:
+                attr_values[placeholder] = {'S': right}  # Store as string type
+            
             value_counter += 1
         
         logger.info(f"Filter parts: {filter_parts}")
